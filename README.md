@@ -21,7 +21,7 @@
 | | |
 |---|---|
 | **Demo video** | _link added on submission_ |
-| **Code** | https://github.com/EmuCS/solanahackathon |
+| **Code** | https://github.com/EmuCS/fraudbusters |
 | **On-chain proof** | Real transactions, listed [below](#on-chain-proof) |
 | **Run it** | [Getting started](#getting-started) (about five minutes) |
 
