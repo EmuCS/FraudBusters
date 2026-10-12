@@ -121,19 +121,19 @@ Fast-track is decided by code, never by the AI alone: the AI's findings are inpu
 
 ## 7. What's built
 
-Everything above runs today on a Solana test network: claimant app (installable on iPhone and iPad), insurer portal, three-shot capture, cross-insurer reuse detection, Claude assessment, fast-track with signed rules, wallet-signed decisions and offers, stablecoin settlement, pay-per-check verification via Pay.sh, unit tests and an end-to-end test.
+Everything above runs today on Solana devnet: claimant app (installable on iPhone and iPad), insurer portal, three-shot capture, cross-insurer reuse detection, Claude assessment, fast-track with signed rules, wallet-signed decisions and offers, stablecoin settlement, pay-per-check verification via Pay.sh, unit tests and an end-to-end test.
 
 ### On-chain proof
 
-Real transactions from the September build, on the Pay.sh sandbox test network (`402.surfnet.dev`, test stablecoin tUSDC). The explorer links open that network as a custom cluster.
+Real transactions on Solana devnet, written by the end-to-end test (`npm run e2e`) with a test stablecoin (tUSDC):
 
-| What | Transaction | Memo |
+| What | Transaction | Record |
 |---|---|---|
-| Capture record (wide shot of a three-shot set) | [QQefR5HT…](https://explorer.solana.com/tx/QQefR5HTEG8QiAwZedTXyVZCQ4AYEJ3B5xe6SersTFr7fAdkvxV8HDq7fbHJcrMqau8mVMyvArDRogvVkHucvPS?cluster=custom&customUrl=https%3A%2F%2F402.surfnet.dev%3A8899) | `fraudbusters:photo:v1` · perceptual hash · SHA-512 · device key · signature · challenge · set/shot |
-| Claim registered on the shared registry | [3q5aT2dP…](https://explorer.solana.com/tx/3q5aT2dP7yzoMP4jNaHmvowhxTEJh5p3Bw1hL2nQV2M5Mo2jopgCvxVJkYpXVqeh4rBqsA77d5qg4tgb9sDMSvih?cluster=custom&customUrl=https%3A%2F%2F402.surfnet.dev%3A8899) | `fraudbusters:claim:v1` (since replaced by v2, see above) |
-| Payout wallet linked from an iPhone with Phantom | [Y5MeP7a8…](https://explorer.solana.com/tx/Y5MeP7a83RS7GAzifQjCg64bAhe6X37PfAuyC5EjYrqEaULX9TXSpudEKhLcNcrenvxkavsb77UPQ2gswZNx3ZP?cluster=custom&customUrl=https%3A%2F%2F402.surfnet.dev%3A8899) | `fraudbusters:link:v1` · device · wallet · wallet signature |
-| Adjuster decision signed in Phantom | [2UJDPJef…](https://explorer.solana.com/tx/2UJDPJefatQpZSCbQ5CotMATdvs6wyN7YighWJ5SazLtgVc63coom5JqxwQ2ksS8S6VoP6jyF3ReoTWas2Nb9Wmz?cluster=custom&customUrl=https%3A%2F%2F402.surfnet.dev%3A8899) | decision · adjuster wallet · adjuster signature |
-| Stablecoin payout (700 tUSDC after an accepted offer) | [33emXq6i…](https://explorer.solana.com/tx/33emXq6iA3HE3cZ7Wqd3bVdBRJ2CRu5F3S1k1wmrMkqjFYQ772BWo9jTSiMboeehywnAT9snm1EnaNg4LyMNNvE6?cluster=custom&customUrl=https%3A%2F%2F402.surfnet.dev%3A8899) | token transfer + `paid` record |
+| Insurer signs its fast-track rule (Liffey Mutual, up to €500) | [4Xb4RK96…](https://explorer.solana.com/tx/4Xb4RK96jcfJPrQ4iMNPEjTM2thjeVgbSQg1ehej5jM9Lhd58Lqv87CsgSabm1SRS7V8y7A35388dYJ6YH9kv3QD?cluster=devnet) | `fraudbusters:policy:v1` · insurer · limit · adjuster wallet · wallet signature |
+| Photo captured and anchored | [4fdSMxUK…](https://explorer.solana.com/tx/4fdSMxUKrxJSCKFk4FTvPjYLrFwD2K39QjHYSTyQiLVxSMCgsu5P6RfaCxBf3X7bNTcrqhzZFU4JhRjTNLrNEMY1?cluster=devnet) | `fraudbusters:photo:v1` · perceptual hash · SHA-512 · device key · signature · challenge |
+| Claim registered on the shared registry | [5H2Y56JJ…](https://explorer.solana.com/tx/5H2Y56JJbeytWgh6rCxYcs2B2RCjo6QivnQg7JGvpTXyGV4KXvBW45i44Vm63X7KT7TzKbcmphLTXivfsi99pJVy?cluster=devnet) | `fraudbusters:claim:v2` · fingerprint · reference · status · claimant device · seal |
+| Adjuster approves: 450 tUSDC paid with the decision in one transaction | [5B47Yz2B…](https://explorer.solana.com/tx/5B47Yz2BvMxRdkaZp1eZsa9BnLFM5e8rvxUgn8j8uehfSSZS5SXDRHKthVG6QXmNdEi4NG3fWqH3FKqppSGrSefW?cluster=devnet) | token transfer + `paid` record · adjuster wallet · adjuster signature |
+| Same photo claimed at a second insurer: flagged | [4ow9KccA…](https://explorer.solana.com/tx/4ow9KccArGZL4hqhhoShw37AksefG5byz9TR2pgP9WoUF2AbuVU4HE1frCFacwPh1qz3cNz8HbsDcgDuoed93r3T?cluster=devnet) | `fraudbusters:claim:v2` · status `flagged` |
 
 ## Try it
 
@@ -276,7 +276,7 @@ paywall.yml         Pay.sh gateway definition
 - **C2PA interoperability**: issue Content Credentials alongside the on-chain record
 - **Pay.sh catalog listing**, so any claims agent can discover and buy verifications
 
-The current build runs on a Solana test network with fictional insurers (Liffey Mutual, Harbour Assurance) and a test stablecoin.
+The current build runs on Solana devnet with fictional insurers (Liffey Mutual, Harbour Assurance) and a test stablecoin.
 
 ## History
 
