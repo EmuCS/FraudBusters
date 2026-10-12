@@ -81,13 +81,23 @@
         ['Insurer', esc(c.insurerName)],
         ['Claimant', `<span class="mono">${esc(short(c.claimant))}</span>`],
         ['Evidence', c.tier === 'verified' ? `Captured live in FraudBusters${c.shots ? ' (3-shot set)' : ''}` : 'Uploaded from elsewhere'],
-        ['Claim record', `<a href="${c.explorer}" target="_blank" rel="noopener">Solana transaction</a>`],
+        ['Claim record', `<a href="${c.explorer}" target="_blank" rel="noopener">Solana transaction</a>${
+          c.seal ? ` <span class="muted small">· details sealed on the record${c.sealOk ? ' (verified)' : c.sealOk === false ? ' (MISMATCH)' : ''}</span>` : ''
+        }`],
+        ...(c.fastTrack
+          ? [['Fast-track', c.fastTrack.eligible
+              ? `Eligible under the ${eur(c.fastTrack.limit)} limit${c.status === 'paid' && !c.decidedBy ? ': paid automatically' : ''}${c.fastTrack.policyTx ? '' : ' (default rule)'}`
+              : `<span class="muted">Not fast-tracked:</span><ul class="small" style="margin:4px 0 0;padding-left:18px">${c.fastTrack.missing.slice(0, 5).map((m) => `<li>${esc(m)}</li>`).join('')}${c.fastTrack.missing.length > 5 ? `<li>and ${c.fastTrack.missing.length - 5} more</li>` : ''}</ul>`]]
+          : []),
         ...(c.offers?.length
           ? [['Offers', c.offers.map((o) => `${eur(o.amount)} <span class="muted">· ${esc({ accept: 'accepted', decline: 'declined' }[o.response] || 'waiting for claimant')}</span>`).join('<br>')]]
           : []),
         ...(c.status === 'paid' && c.paidAmount != null && c.paidAmount !== c.amount ? [['Paid', `${eur(c.paidAmount)} <span class="muted">of ${eur(c.amount)} claimed</span>`]] : []),
         ...(c.status !== 'rejected' && c.payoutTo
           ? [[c.status === 'paid' ? 'Paid to' : 'Pays to', `${esc(c.payoutWallet ? `${c.payoutWallet} wallet` : 'Device wallet')} <span class="mono muted">${esc(short(c.payoutTo))}</span>`]]
+          : []),
+        ...(c.status === 'paid' && !c.decidedBy && c.fastTrack?.eligible
+          ? [['Approved by', `Fast-track rule${c.fastTrack.policyTx ? '' : ' (default)'} <span class="muted">· no adjuster needed</span>`]]
           : []),
         ...(c.decidedBy || c.offeredBy
           ? [['Signed by', `${esc((c.decidedBy || c.offeredBy).walletName)} <span class="mono muted">${esc(short((c.decidedBy || c.offeredBy).wallet))}</span> <span class="muted">(adjuster)</span>`]]

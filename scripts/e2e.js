@@ -61,6 +61,15 @@ async function capture(img) {
 const line = (label, c) =>
   console.log(`${label.padEnd(28)} → ${c.status.padEnd(13)} ${c.reason}\n${' '.repeat(31)}${c.explorer}`);
 
+// The insurer signs its fast-track rule; a tampered limit is refused
+const rule = await fetch(`${BASE}/api/policies/liffey/message?limit=500`).then((r) => r.json());
+const ruleSig = bs58.encode(nacl.sign.detached(Buffer.from(rule.message), adjuster.secretKey));
+const ruleBody = { limit: rule.limit, message: rule.message, signature: ruleSig, wallet: bs58.encode(adjuster.publicKey), walletName: 'Phantom' };
+const tampered = await fetch(`${BASE}/api/policies/liffey`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...ruleBody, limit: 2000 }) });
+if (tampered.ok) throw new Error('tampered fast-track limit was accepted');
+const { policy } = await fetch(`${BASE}/api/policies/liffey`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(ruleBody) }).then((r) => r.json());
+console.log(`fast-track rule signed       → ${policy.insurerName} up to €${policy.fastTrackLimit} ${policy.explorer}`);
+
 const img1 = await photo();
 const p1 = await capture(img1);
 console.log(`capture                      → anchored ${p1.explorer}`);

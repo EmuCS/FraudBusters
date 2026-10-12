@@ -10,15 +10,16 @@ import bs58 from 'bs58';
 import { PublicKey } from '@solana/web3.js';
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import {
-  ROOT, IMG_DIR, ORIG_DIR, CERT_DIR, PORT, HTTPS_PORT, MEMO_PHOTO, MEMO_CLAIM, MEMO_LINK,
+  ROOT, IMG_DIR, ORIG_DIR, CERT_DIR, PORT, HTTPS_PORT, MEMO_PHOTO, MEMO_CLAIM, MEMO_LINK, MEMO_POLICY,
   CHALLENGE_TTL_S, runtimeConfig,
 } from './config.js';
 import { connection, loadKeypair, writeMemo, payout, explorerTx, explorerAddr } from './solana.js';
 import { dhash, hamming, thumbnail } from './phash.js';
-import { photos, claims, links, findPhoto, findClaims, SAME_THRESHOLD } from './store.js';
+import { photos, claims, links, policies, findPhoto, findClaims, SAME_THRESHOLD } from './store.js';
 import { paidVerify, reverseImageSearch } from './payClient.js';
 import { aiLabelCheck, metadataChecks } from './signals.js';
 import { assessPhoto } from './contentCheck.js';
+import { DEFAULT_POLICIES, MAX_FAST_TRACK_LIMIT, fastTrack, validLimit } from './policies.js';
 
 export const INSURERS = {
   liffey: 'Liffey Mutual',
@@ -102,10 +103,20 @@ function claimantView(c) {
   };
 }
 
+// Seal: a hash of the claim details, written on Solana with the claim. The details stay with the
+// insurer; the salt stops anyone guessing amounts against the hash. Either side can later prove what
+// was claimed by revealing the details and salt.
+const sealOf = (c) =>
+  crypto
+    .createHash('sha256')
+    .update(['fraudbusters:seal:v1', c.id, c.insurer, Number(c.amount).toFixed(2), c.currency, c.claimant, c.description, c.sealSalt].join('\n'))
+    .digest('base64url');
+
 function claimView(c) {
   const link = linkFor(c.claimant);
   return {
     ...c,
+    sealOk: c.seal ? sealOf(c) === c.seal : null,
     payoutTo: c.paidTo || payoutAddress(c),
     payoutWallet: c.paidTo ? c.paidToWallet || null : link?.walletName || null,
     insurerName: INSURERS[c.insurer] || c.insurer,
@@ -185,7 +196,17 @@ async function assess(buf, { claimant, description, amount, set } = {}) {
   // AI photo assessment (claims only) runs in parallel with the paid registry check
   const images = set ? set.map((s) => ({ buf: s.buf, label: `Shot: ${SHOT_LABEL[s.shot]}${s.side ? ` (from the ${s.side})` : ''}` })) : [{ buf }];
   const content = description !== undefined ? assessPhoto(images, description, amount) : null;
-  const { result: v, payment } = await paidVerify(buf);
+  let v;
+  let payment;
+  try {
+    ({ result: v, payment } = await paidVerify(buf));
+  } catch (e) {
+    // The registry lookup itself doesn't depend on Pay.sh: if the gateway is down, check directly and
+    // record that this check was not charged, instead of blocking the claim
+    console.warn(`Pay.sh check unavailable, checking the registry directly: ${e.message.split('\n')[0]}`);
+    v = await verifyImage(buf);
+    payment = { service: 'FraudBusters registry check', price: '$0.00', network: 'not charged (Pay.sh gateway unreachable)', ms: 0 };
+  }
   const payments = [payment];
   const checks = [];
   const tier = v.verified ? 'verified' : 'upload';
@@ -265,8 +286,8 @@ async function assess(buf, { claimant, description, amount, set } = {}) {
   return { verification: v, checks, tier, payments, assessment, history };
 }
 
-// Triage only. We verify the *evidence* (authentic, unedited, not reused); whether the photo actually
-// shows covered damage is a human decision, so nothing is paid until an adjuster approves.
+// Triage. We verify the *evidence* (authentic, unedited, not reused). Money only moves without a human
+// when the insurer's fast-track rule allows it (see policies.js); everything else waits for an adjuster.
 function triage({ checks, tier }) {
   const fails = checks.filter((c) => c.status === 'fail');
   const warns = checks.filter((c) => c.status === 'warn');
@@ -383,15 +404,13 @@ app.post('/api/claims', upload.single('image'), async (req, res) => {
 
   const a = await assess(buf, { claimant: claimant.toBase58(), description: String(description), amount, set });
   const { status, reason } = triage(a);
+  const policy = policyFor(insurer);
+  const ft = fastTrack({ amount, tier: a.tier, checks: a.checks, assessment: a.assessment }, policy);
 
   const id = newId();
   fs.writeFileSync(path.join(ORIG_DIR, `claim-${id}.jpg`), buf);
-  // Registering the claim on-chain is what lets every other insurer detect reuse of this photo
-  const memo = [MEMO_CLAIM, a.verification.dhash, insurer, id, status, a.verification.photo?.id || '-', amount, claimant.toBase58(), ...(set ? [setId] : [])].join('|');
-  const tx = await writeMemo(service(), memo);
   const { payoutSymbol } = runtimeConfig();
-
-  const claim = claims.add({
+  const draft = {
     id,
     insurer,
     amount,
@@ -400,9 +419,19 @@ app.post('/api/claims', upload.single('image'), async (req, res) => {
     claimant: claimant.toBase58(),
     dhash: a.verification.dhash,
     photoId: a.verification.photo?.id || null,
+    sealSalt: crypto.randomBytes(16).toString('base64url'),
+    ...(set ? { setId: String(setId) } : {}),
+  };
+  draft.seal = sealOf(draft);
+  // Registering the claim on-chain is what lets every other insurer detect reuse of this photo
+  const tx = await writeMemo(service(), claimMemo(draft, status, set ? [`set:${setId}`] : []));
+
+  let claim = claims.add({
+    ...draft,
     tier: a.tier,
     status,
     reason,
+    fastTrack: { ...ft, policyTx: policy.tx || null },
     checks: a.checks,
     payments: a.payments,
     assessment: a.assessment,
@@ -419,7 +448,82 @@ app.post('/api/claims', upload.single('image'), async (req, res) => {
     tx,
     createdAt: new Date().toISOString(),
   });
+
+  // Fast-track: every check passed and the amount is within the insurer's signed limit → pay now.
+  // The payment memo names the rule it was paid under, so an auditor can check every automatic payout.
+  if (ft.eligible) {
+    try {
+      const t0 = Date.now();
+      const rule = ['auto:fast-track', `limit:${ft.limit.toFixed(2)}`, `policy:${policy.tx || 'default'}`];
+      const paid = await settle(claim, amount, claimMemo(claim, 'paid', rule));
+      claim = claims.update(id, {
+        status: 'paid',
+        paidAmount: amount,
+        paidTo: paid.paidTo,
+        paidToWallet: paid.paidToWallet,
+        decisionTx: paid.tx,
+        decidedAt: new Date().toISOString(),
+        decidedBy: null,
+        reason: `Fast-tracked: every check passed and ${money(amount)} is within ${INSURERS[insurer]}'s ${money(ft.limit)} limit. Paid automatically in ${((Date.now() - t0) / 1000).toFixed(1)} s.`,
+      });
+    } catch (e) {
+      console.error('Fast-track payment failed, sending to adjuster:', e.message);
+      claim = claims.update(id, { reason: `${reason} Fast-track payment failed (${e.message.slice(0, 120)}): adjuster to settle.` });
+    }
+  }
   res.json({ receipt: claimantView(claim) });
+});
+
+// Fast-track rules. The insurer sets its limit by signing a server-issued message with its wallet;
+// the rule is recorded on Solana, and every automatic payment names the rule it was paid under.
+// Prototype: any wallet may sign; production: each insurer's allowlisted admin wallets.
+function policyFor(insurer) {
+  const signed = policies.all().filter((p) => p.insurer === insurer).at(-1);
+  return signed || { insurer, ...DEFAULT_POLICIES[insurer], tx: null, at: null };
+}
+const policyView = (p) => ({
+  insurer: p.insurer,
+  insurerName: INSURERS[p.insurer],
+  fastTrackLimit: p.fastTrackLimit,
+  setBy: p.setBy || null,
+  at: p.at,
+  explorer: p.tx ? explorerTx(p.tx) : null,
+});
+function policyText(insurer, limit, ts) {
+  return [
+    'FraudBusters fast-track rule',
+    `Insurer: ${INSURERS[insurer]}`,
+    limit > 0 ? `Pay claims automatically up to: ${money(limit)}` : 'Fast-track: off (every claim goes to an adjuster)',
+    'Only when every evidence check passes; everything else goes to an adjuster.',
+    `Ref: ${ts}.${mac(`policy:${insurer}:${limit.toFixed(2)}:${ts}`)}`,
+  ].join('\n');
+}
+
+app.get('/api/policies', (_req, res) => res.json({ max: MAX_FAST_TRACK_LIMIT, policies: Object.keys(INSURERS).map((k) => policyView(policyFor(k))) }));
+
+app.get('/api/policies/:insurer/message', (req, res) => {
+  const { insurer } = req.params;
+  const limit = validLimit(req.query.limit);
+  if (!INSURERS[insurer]) return res.status(404).json({ error: 'Unknown insurer' });
+  if (limit === null) return res.status(400).json({ error: `Limit must be between €0 and ${money(MAX_FAST_TRACK_LIMIT)}` });
+  res.json({ limit, message: policyText(insurer, limit, String(now())) });
+});
+
+app.post('/api/policies/:insurer', async (req, res) => {
+  const { insurer } = req.params;
+  const body = req.body || {};
+  const limit = validLimit(body.limit);
+  if (!INSURERS[insurer]) return res.status(404).json({ error: 'Unknown insurer' });
+  if (limit === null) return res.status(400).json({ error: `Limit must be between €0 and ${money(MAX_FAST_TRACK_LIMIT)}` });
+  const ts = String(body.message || '').match(/\nRef: (\d+)\./)?.[1];
+  if (!ts || now() - Number(ts) > 300 || body.message !== policyText(insurer, limit, ts)) {
+    return res.status(400).json({ error: 'Rule not signed or expired: sign it again in your wallet' });
+  }
+  if (!verifyText(body.message, body.signature, body.wallet)) return res.status(403).json({ error: 'Wallet signature does not match' });
+  const setBy = { wallet: String(body.wallet), walletName: WALLET_NAMES.includes(body.walletName) ? body.walletName : 'Wallet' };
+  const tx = await writeMemo(service(), [MEMO_POLICY, insurer, `fast-track:${limit.toFixed(2)}`, `adj:${setBy.wallet}`, `adjsig:${body.signature}`].join('|'));
+  const p = policies.add({ id: newId(), insurer, fastTrackLimit: limit, setBy, signature: String(body.signature), tx, at: new Date().toISOString() });
+  res.json({ policy: policyView(p) });
 });
 
 app.get('/api/claims', (req, res) => {
@@ -507,8 +611,12 @@ app.get('/api/link/:device', (req, res) => {
 // production: an allowlist of each insurer's adjuster wallets.
 const settling = new Set(); // one payout per claim at a time (adjuster and claimant can race)
 const money = (n) => `€${n.toLocaleString('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const decisionMemo = (c, status, extra = []) =>
-  [MEMO_CLAIM, c.dhash, c.insurer, c.id, status, c.photoId || '-', c.amount, c.claimant, ...extra].join('|');
+// On-chain claim record: fingerprint, reference, status, capture, claimant device and the seal of the
+// details. No insurer, amount or description: rivals share the registry, not each other's books.
+// Amounts in decisions are covered by the adjuster's signature over the full decision text.
+function claimMemo(c, status, extra = []) {
+  return [MEMO_CLAIM, c.dhash, c.id, status, c.photoId || '-', c.claimant, c.seal || '-', ...extra].join('|');
+}
 
 async function settle(c, amount, memo) {
   const { payoutMint } = runtimeConfig();
@@ -578,7 +686,7 @@ app.post('/api/claims/:id/decision', (req, res) =>
 
     const at = new Date().toISOString();
     if (action === 'offer') {
-      const tx = await writeMemo(service(), decisionMemo(c, 'offered', [`offer:${amount.toFixed(2)}`, ...signedBy]));
+      const tx = await writeMemo(service(), claimMemo(c, 'offered', signedBy));
       const updated = claims.update(c.id, {
         status: 'offered',
         statusBeforeOffer: c.status === 'offered' ? c.statusBeforeOffer : c.status,
@@ -593,7 +701,7 @@ app.post('/api/claims/:id/decision', (req, res) =>
       return res.json({ claim: claimView(updated) });
     }
     const status = action === 'approve' ? 'paid' : 'rejected';
-    const memo = decisionMemo(c, status, signedBy);
+    const memo = claimMemo(c, status, signedBy);
     const paid = status === 'paid' ? await settle(c, c.amount, memo) : null;
     const decisionTx = paid ? paid.tx : await writeMemo(service(), memo);
     const updated = claims.update(c.id, {
@@ -629,7 +737,7 @@ app.post('/api/my-claims/:id/respond', (req, res) =>
     const at = new Date().toISOString();
     const offers = (c.offers || []).map((o, i, a) => (i === a.length - 1 ? { ...o, response: action, respondedAt: at } : o));
     if (action === 'decline') {
-      const memo = decisionMemo(c, 'offer-declined', [`offer:${c.offerAmount.toFixed(2)}`]);
+      const memo = claimMemo(c, 'offer-declined', [`claimsig:${signature}`]);
       const tx = await writeMemo(service(), memo);
       const updated = claims.update(c.id, {
         status: c.statusBeforeOffer || 'review',
@@ -639,7 +747,7 @@ app.post('/api/my-claims/:id/respond', (req, res) =>
       });
       return res.json({ receipt: claimantView(updated) });
     }
-    const paid = await settle(c, c.offerAmount, decisionMemo(c, 'paid', [`paid:${c.offerAmount.toFixed(2)}`]));
+    const paid = await settle(c, c.offerAmount, claimMemo(c, 'paid', [`claimsig:${signature}`]));
     const updated = claims.update(c.id, {
       status: 'paid',
       paidAmount: c.offerAmount,

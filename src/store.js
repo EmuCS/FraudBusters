@@ -45,6 +45,8 @@ export const photos = table('photos');
 export const claims = table('claims');
 // Device key → external wallet (Phantom / Solflare) that receives the claimant's payouts
 export const links = table('links');
+// Each insurer's fast-track rule, latest row wins (signed by the insurer's wallet, recorded on Solana)
+export const policies = table('policies');
 
 export function findPhoto(dh) {
   let best = null;

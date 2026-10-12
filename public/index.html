@@ -18,38 +18,63 @@
   <main>
     <p class="eyebrow">Claims evidence infrastructure</p>
     <h1 class="hero">Know a claim photo is real before you pay it.</h1>
-    <p class="lede">Every claim photo is checked against the four questions an adjuster asks, in seconds, with the proof recorded on a shared ledger no single insurer controls.</p>
+    <p class="lede">We don't try to spot fakes. We prove the real ones: captured live, never claimed before at any insurer, and showing what the claim says. The proof sits on a public record no single insurer controls.</p>
 
     <div class="grid" style="margin-top:28px">
       <a class="card action" href="/capture.html" style="text-decoration:none;color:inherit">
         <p class="eyebrow" style="margin-bottom:6px">Claimant app</p>
         <h3>Capture evidence and claim</h3>
-        <p class="muted small" style="margin:0">Live camera only. Track your claim; approved payments arrive on your phone in seconds.</p>
+        <p class="muted small" style="margin:0">Live camera only. Small claims that pass every check are paid in seconds; the rest are tracked until an adjuster decides.</p>
       </a>
       <a class="card action" href="/adjuster.html" style="text-decoration:none;color:inherit">
         <p class="eyebrow" style="margin-bottom:6px">Insurer portal</p>
         <h3>Review and settle claims</h3>
-        <p class="muted small" style="margin:0">Every claim arrives triaged, with the reason for every finding and the claimant’s history across insurers.</p>
+        <p class="muted small" style="margin:0">Set your fast-track limit. Every other claim arrives triaged, with the reason for every finding and the claimant’s history across insurers.</p>
       </a>
     </div>
+
+    <h2>The problem</h2>
+    <div class="stats">
+      <div><b>36%</b><span>of consumers would consider digitally altering a claim photo or document</span></div>
+      <div><b>99%</b><span>of insurers have encountered manipulated or AI-altered claim documents</span></div>
+      <div><b>66%</b><span>of insurers believe this fraud goes undetected often or very often</span></div>
+      <div><b>32%</b><span>of insurers are very confident they could identify a deepfake</span></div>
+    </div>
+    <p class="muted small" style="margin:8px 0 0">Source: Verisk State of Insurance Fraud study, March 2026 (US surveys of 1,000 consumers and 300 claims professionals).</p>
 
     <h2>Four questions, answered before anyone pays</h2>
     <div class="grid how">
       <div class="card">
         <h3>Is it real?</h3>
-        <p class="muted small" style="margin:0">Captured live on the claimant’s phone, signed on the device and recorded on Solana. Unedited since.</p>
+        <p class="muted small" style="margin:0">Three shots captured live on the claimant’s phone, from a side the server picks at random. Signed on the device and recorded on Solana the moment they are taken. Any later edit breaks the record.</p>
       </div>
       <div class="card">
         <h3>Is it new?</h3>
-        <p class="muted small" style="margin:0">Never used in a claim before, at any insurer, even after compression. Plus the claimant’s history across the whole market.</p>
+        <p class="muted small" style="margin:0">Checked against every claim on the shared registry, at every insurer, even after compression. Plus the claimant’s claims across the whole market.</p>
       </div>
       <div class="card">
         <h3>Does it add up?</h3>
-        <p class="muted small" style="margin:0">AI reads the photo: does it show what is claimed, and is the amount plausible for the damage visible?</p>
+        <p class="muted small" style="margin:0">AI compares the photos with the description: same object in every shot, a real scene and not a screen, damaged parts and severity, and whether the amount fits.</p>
       </div>
       <div class="card">
         <h3>Settled?</h3>
-        <p class="muted small" style="margin:0">The adjuster approves; the payment settles in stablecoins within seconds, the decision recorded with it.</p>
+        <p class="muted small" style="margin:0">Under the insurer’s fast-track limit with every check passed: paid in seconds. Otherwise an adjuster decides, signs with their wallet, and the payment settles in stablecoins.</p>
+      </div>
+    </div>
+
+    <h2>Why a public record, not just an upload</h2>
+    <div class="grid">
+      <div class="card subtle">
+        <h3>Nobody can backdate it</h3>
+        <p class="muted small" style="margin:0">A server's records can be changed by whoever runs it. On Solana the capture time is fixed when the photo is taken, so damage from before the policy started can’t be passed off as new.</p>
+      </div>
+      <div class="card subtle">
+        <h3>Shared, without an owner</h3>
+        <p class="muted small" style="margin:0">Duplicate claims only show up if every insurer checks the same list. Like a car history check: anyone can look up a fingerprint, nobody sees photos, names or claim details.</p>
+      </div>
+      <div class="card subtle">
+        <h3>Proof for both sides</h3>
+        <p class="muted small" style="margin:0">The claim details are sealed on the record. The claimant can prove what they sent and when; the insurer can prove every decision and every automatic payment followed its signed rule.</p>
       </div>
     </div>
 

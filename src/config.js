@@ -34,7 +34,12 @@ export const MATCH_THRESHOLD = Number(process.env.MATCH_THRESHOLD || 10);
 
 // Memo prefixes — the on-chain record format
 export const MEMO_PHOTO = 'fraudbusters:photo:v1';
-export const MEMO_CLAIM = 'fraudbusters:claim:v1';
+// Claim records v2: fingerprint, status and a seal (hash) of the claim details. Insurer, amount and
+// description stay with the insurer; the seal lets either side prove later what was claimed.
+export const MEMO_CLAIM = 'fraudbusters:claim:v2';
+export const MEMO_CLAIM_V1 = 'fraudbusters:claim:v1';
+// An insurer's fast-track rule, signed by its wallet
+export const MEMO_POLICY = 'fraudbusters:policy:v1';
 export const MEMO_LINK = 'fraudbusters:link:v1';
 
 // Written by `npm run setup`, per RPC (devnet vs sandbox have different mints);

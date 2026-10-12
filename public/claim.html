@@ -135,9 +135,11 @@
       $('result').innerHTML = '<p class="muted" style="margin:0">Sending your claim and evidence to your insurer…</p>';
       try {
         const { receipt: r } = await post('/api/claims', fd);
+        const paid = r.status === 'Paid';
         $('result').innerHTML = `
-          <div class="status review" style="margin-top:0">
-            <h3>Claim submitted</h3>
+          <div class="status ${paid ? 'paid' : 'review'}" style="margin-top:0">
+            <h3>${paid ? `Paid: ${eur(r.paidAmount)}` : 'Claim submitted'}</h3>
+            ${paid ? `<p class="small">Your evidence passed every check, so ${esc(r.insurerName)} paid it straight away.${r.paymentExplorer ? ` <a href="${r.paymentExplorer}" target="_blank" rel="noopener">View payment</a>` : ''}</p>` : ''}
             <p class="small">Reference <span class="mono">${esc(r.id)}</span> · ${esc(r.insurerName)} · ${eur(r.amount)}</p>
           </div>
           <p class="small" style="margin:12px 0 0">Status ${claimantBadge(r.status)}. You’ll see the decision in <a href="/my-claims.html">My claims</a>; approved payments arrive on this device.</p>`;
