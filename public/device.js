@@ -164,10 +164,10 @@ export const LOGOS = {
 };
 export function currentLogo() {
   try {
-    const k = localStorage.getItem('fraudbusters.logo');
+    const k = localStorage.getItem('fraudbusters.logo.v2');
     if (k && LOGOS[k]) return k;
   } catch {}
-  return 'strike';
+  return 'fang';
 }
 
 // Two separate products: the claimant's app and the insurer's portal

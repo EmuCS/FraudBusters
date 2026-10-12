@@ -55,7 +55,7 @@
         )
         .join('');
       document.querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => {
-        try { localStorage.setItem('fraudbusters.logo', b.dataset.k); } catch {}
+        try { localStorage.setItem('fraudbusters.logo.v2', b.dataset.k); } catch {}
         location.reload();
       }));
     }
