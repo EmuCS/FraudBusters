@@ -198,7 +198,8 @@ flowchart LR
 - Connect Phantom or Solflare to receive payments in your own wallet
 - Status only: fraud signals are never shown to claimants
 
-![Claimant app on iPhone](docs/screenshots/phone.png)
+![Claimant app on iPad](docs/screenshots/claimant.png)
+<p align="center"><sub>Claimant app on iPad: guided capture (shot 3 of 3, from the side the server picked), a claim fast-tracked and paid on the spot, and My claims.</sub></p>
 
 **Insurer portal**
 - Fast-track rule per insurer, signed by the insurer's wallet and recorded on Solana
